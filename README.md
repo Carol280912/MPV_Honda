@@ -67,3 +67,9 @@ Campaigns are saved and approved but not sent. No DMS, SMS, towing, payment, or 
 The sign-up privacy copy is a preview placeholder; the pilot dealer must supply approved terms and policy text before public registration is enabled. The vehicle artwork is from the supplied Stitch HTML; confirm reuse rights before public publication.
 
 See [architecture](docs/ARCHITECTURE.md), [deployment](docs/DEPLOYMENT.md), and [verification](docs/VERIFICATION.md).
+
+## Phase 2 increment (September 10)
+
+The latest update adds the revised Stitch customer dashboard, service requests, Manager request handling and Administrator catalogue versions. See [Phase 2 scope and remaining work](docs/PHASE2.md). This is the first Phase 2 increment, not the complete Phase 2 matrix. Existing architecture, Phase 1 flows and Service Advisor hold remain.
+
+Apply the new `supabase/migrations/202609100001_phase2.sql` migration after Phase 1 before using Supabase mode. The local preview remains fictional browser data; it is not a live dealer system.
