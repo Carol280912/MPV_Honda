@@ -73,3 +73,7 @@ See [architecture](docs/ARCHITECTURE.md), [deployment](docs/DEPLOYMENT.md), and 
 The latest update adds the revised Stitch customer dashboard, service requests, Manager request handling and Administrator catalogue versions. See [Phase 2 scope and remaining work](docs/PHASE2.md). This is the first Phase 2 increment, not the complete Phase 2 matrix. Existing architecture, Phase 1 flows and Service Advisor hold remain.
 
 Apply the new `supabase/migrations/202609100001_phase2.sql` migration after Phase 1 before using Supabase mode. The local preview remains fictional browser data; it is not a live dealer system.
+
+## September 11 — separate journeys and receipt uploads
+
+Maintenance, Repairs, Parts, Insurance and Towing now have distinct customer forms and next steps. Each request supports photos/PDFs and Manager evidence verification. See [setup, upload limits and GitHub instructions](docs/SERVICE-JOURNEYS.md). For live uploads, apply `202609110001_service_documents.sql` after the earlier migrations. Demo uploads remain in the local browser.

@@ -4,6 +4,7 @@ export const supabaseRepository: Repository = {
   async load(actor: Actor) {
     if (!supabase) throw Error("Supabase is not configured.");
     const tables: Table[] = [
+      "service_documents",
       "service_catalogue",
       "service_requests",
       "customers",
@@ -41,7 +42,11 @@ export const supabaseRepository: Repository = {
   async execute(actor, command) {
     if (!supabase) throw Error("Supabase is not configured.");
     const { error } = await supabase.rpc(
-      command.type.startsWith("phase2.") ? "phase2_action" : "phase1_action",
+      command.type.startsWith("document.")
+        ? "document_action"
+        : command.type.startsWith("phase2.")
+          ? "phase2_action"
+          : "phase1_action",
       {
         p_tenant: actor.tenant_id,
         p_branch: actor.branch_id,

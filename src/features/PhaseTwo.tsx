@@ -1,3 +1,5 @@
+import { ServiceJourney } from "./ServiceJourney";
+import { Documents } from "./ServiceDocuments";
 import { useState } from "react";
 import { Badge, Button, Card, Empty, Field, Heading } from "../components/ui";
 import { useWorkspace } from "../lib/context";
@@ -17,10 +19,12 @@ export function PhaseTwo({
   initialCategory?: string;
 }) {
   const { actor, data, run, busy, navigate } = useWorkspace();
-  const [category, setCategory] = useState(initialCategory);
+  const [category, setCategory] = useState("All");
   const customer = data.customers.find((c) => c.user_id === actor.user_id);
   const admin = actor.role === "administrator",
     manager = actor.role === "manager";
+  if (actor.role === "customer")
+    return <ServiceJourney category={initialCategory} />;
   return (
     <>
       <Heading
@@ -88,68 +92,82 @@ export function PhaseTwo({
               ))}
           <Card>
             <h2>{manager ? "Branch request queue" : "Request history"}</h2>
+            <Field label="Filter service">
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="All">All services</option>
+                {categories.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </Field>
             {!data.service_requests.length && (
               <Empty
                 title="No requests yet"
                 description="Submitted requests and their progress will appear here."
               />
             )}
-            {data.service_requests.map((r) => (
-              <div className="request-row" key={r.id}>
-                <div className="row">
-                  <h3>{r.category}</h3>
-                  <Badge tone={r.status === "Closed" ? "green" : "amber"}>
-                    {r.status}
-                  </Badge>
+            {data.service_requests
+              .filter((r) => category === "All" || r.category === category)
+              .map((r) => (
+                <div className="request-row" key={r.id}>
+                  <div className="row">
+                    <h3>{r.category}</h3>
+                    <Badge tone={r.status === "Closed" ? "green" : "amber"}>
+                      {r.status}
+                    </Badge>
+                  </div>
+                  <p style={{ whiteSpace: "pre-wrap" }}>{r.details}</p>
+                  <Documents request={r} />
+                  <p className="small muted">
+                    {
+                      data.vehicles.find((v) => v.id === r.vehicle_id)
+                        ?.registration
+                    }{" "}
+                    · {new Date(r.created_at).toLocaleDateString()}
+                    {manager
+                      ? " · " +
+                        data.customers.find((c) => c.id === r.customer_id)?.name
+                      : ""}
+                  </p>
+                  {r.outcome && <p className="inline-note">{r.outcome}</p>}
+                  {manager && r.status !== "Closed" && (
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const f = e.currentTarget;
+                        if (
+                          await run({
+                            type: "phase2.request.update",
+                            id: r.id,
+                            payload: Object.fromEntries(new FormData(f)),
+                          })
+                        )
+                          f.reset();
+                      }}
+                    >
+                      <Field label="Next status">
+                        <select name="status">
+                          {(r.status === "Requested"
+                            ? ["In progress", "Closed"]
+                            : r.status === "In progress"
+                              ? ["Waiting for customer", "Closed"]
+                              : ["In progress", "Closed"]
+                          ).map((s) => (
+                            <option key={s}>{s}</option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Customer-visible update / closure reason">
+                        <textarea name="outcome" required maxLength={2000} />
+                      </Field>
+                      <Button disabled={busy}>Update request</Button>
+                    </form>
+                  )}
                 </div>
-                <p>{r.details}</p>
-                <p className="small muted">
-                  {
-                    data.vehicles.find((v) => v.id === r.vehicle_id)
-                      ?.registration
-                  }{" "}
-                  · {new Date(r.created_at).toLocaleDateString()}
-                  {manager
-                    ? " · " +
-                      data.customers.find((c) => c.id === r.customer_id)?.name
-                    : ""}
-                </p>
-                {r.outcome && <p className="inline-note">{r.outcome}</p>}
-                {manager && r.status !== "Closed" && (
-                  <form
-                    onSubmit={async (e) => {
-                      e.preventDefault();
-                      const f = e.currentTarget;
-                      if (
-                        await run({
-                          type: "phase2.request.update",
-                          id: r.id,
-                          payload: Object.fromEntries(new FormData(f)),
-                        })
-                      )
-                        f.reset();
-                    }}
-                  >
-                    <Field label="Next status">
-                      <select name="status">
-                        {(r.status === "Requested"
-                          ? ["In progress", "Closed"]
-                          : r.status === "In progress"
-                            ? ["Waiting for customer", "Closed"]
-                            : ["In progress", "Closed"]
-                        ).map((s) => (
-                          <option key={s}>{s}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Customer-visible update / closure reason">
-                      <textarea name="outcome" required maxLength={2000} />
-                    </Field>
-                    <Button disabled={busy}>Update request</Button>
-                  </form>
-                )}
-              </div>
-            ))}
+              ))}
           </Card>
         </div>
         <div className="stack">

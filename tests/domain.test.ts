@@ -329,3 +329,61 @@ describe("Phase 2 service requests", () => {
     expect(() => applyCommand(d, demoActors.advisor, cmd)).toThrow(/on hold/);
   });
 });
+
+describe("Service evidence authorization", () => {
+  const register = {
+    type: "document.register",
+    payload: {
+      request_id: "",
+      filename: "sample.pdf",
+      mime_type: "application/pdf",
+      demo_url: "data:application/pdf;base64,JVBERi0x",
+      kind: "Receipt",
+      amount_sen: 12000,
+      payment_reference: "DEMO-1",
+    },
+  };
+  it("requires owned request, independent manager review and preserves loyalty balance", () => {
+    let d = applyCommand(makeSeed(), customer, {
+      type: "phase2.request.create",
+      payload: {
+        customer_id: "c1",
+        vehicle_id: "v1",
+        category: "Insurance",
+        details: "Renewal enquiry",
+      },
+    });
+    const cmd = {
+      ...register,
+      payload: { ...register.payload, request_id: d.service_requests[0].id },
+    };
+    expect(() =>
+      applyCommand(
+        d,
+        { ...customer, user_id: "daniel", customer_id: "c2" },
+        cmd,
+      ),
+    ).toThrow();
+    d = applyCommand(d, customer, cmd);
+    const id = d.service_documents[0].id;
+    const review = {
+      type: "document.review",
+      id,
+      payload: {
+        status: "Verified",
+        review_note: "Matched against dealer receipt record DEMO-1",
+      },
+    };
+    expect(() => applyCommand(d, customer, review)).toThrow(/permission/);
+    expect(() => applyCommand(d, admin, review)).toThrow(/permission/);
+    const points = balance(d, "c1");
+    d = applyCommand(d, manager, review);
+    expect(d.service_documents[0].status).toBe("Verified");
+    expect(balance(d, "c1")).toBe(points);
+    expect(() => applyCommand(d, manager, review)).toThrow(/no longer/);
+    expect(
+      scopeData(d, { ...customer, user_id: "daniel", customer_id: "c2" })
+        .service_documents,
+    ).toHaveLength(0);
+  });
+});

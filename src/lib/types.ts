@@ -165,7 +165,23 @@ export interface ServiceRequest extends Base {
   outcome: string;
   created_at: string;
 }
+export interface ServiceDocument extends Base {
+  request_id: string;
+  customer_id: string;
+  filename: string;
+  mime_type: string;
+  storage_path: string;
+  demo_url?: string;
+  kind: string;
+  amount_sen: number;
+  payment_reference: string;
+  status: "Awaiting verification" | "Verified" | "Rejected";
+  review_note: string;
+  reviewed_by: string | null;
+  created_at: string;
+}
 export interface Data {
+  service_documents: ServiceDocument[];
   service_catalogue: CatalogueItem[];
   service_requests: ServiceRequest[];
   customers: Customer[];

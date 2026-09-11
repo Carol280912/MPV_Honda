@@ -117,6 +117,60 @@ export function applyCommand(input: Data, a: Actor, c: Command): Data {
       created_at: now,
     });
   switch (c.type) {
+    case "document.register": {
+      requireRole(a, ["customer"]);
+      const r = d.service_requests.find(
+        (x) => x.id === p.request_id && inScope(a, x),
+      );
+      if (!r) throw Error("Request unavailable.");
+      customer(r.customer_id);
+      const mime = required(p.mime_type),
+        url = required(p.demo_url);
+      if (
+        !["image/jpeg", "image/png", "application/pdf"].includes(mime) ||
+        !url.startsWith("data:" + mime + ";base64,") ||
+        url.length > 1500000
+      )
+        throw Error("Unsupported document or file too large.");
+      if (
+        !["Receipt", "Invoice", "Supporting document"].includes(String(p.kind))
+      )
+        throw Error("Invalid document type.");
+      d.service_documents.push({
+        ...base,
+        id,
+        request_id: r.id,
+        customer_id: r.customer_id,
+        filename: required(p.filename),
+        mime_type: mime,
+        storage_path: "",
+        demo_url: url,
+        kind: String(p.kind),
+        amount_sen: number(p.amount_sen, 0, 100000000),
+        payment_reference: String(p.payment_reference || ""),
+        status: "Awaiting verification",
+        review_note: "",
+        reviewed_by: null,
+        created_at: now,
+      });
+      audit("Document submitted for manual verification");
+      break;
+    }
+    case "document.review": {
+      requireRole(a, ["manager"]);
+      const doc = d.service_documents.find(
+        (x) => x.id === c.id && inScope(a, x),
+      );
+      if (!doc || doc.status !== "Awaiting verification")
+        throw Error("Document is no longer awaiting verification.");
+      if (!["Verified", "Rejected"].includes(String(p.status)))
+        throw Error("Invalid review status.");
+      doc.status = p.status as typeof doc.status;
+      doc.review_note = required(p.review_note);
+      doc.reviewed_by = a.user_id;
+      audit(doc.review_note);
+      break;
+    }
     case "phase2.catalogue.create": {
       requireRole(a, ["administrator"]);
       const effective = required(p.effective_on);
@@ -608,6 +662,7 @@ export function createDemoRepository(): Repository {
         service_catalogue:
           saved.service_catalogue ?? makeSeed().service_catalogue,
         service_requests: saved.service_requests ?? [],
+        service_documents: saved.service_documents ?? [],
       };
     } catch {
       return makeSeed();

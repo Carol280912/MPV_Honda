@@ -2036,3 +2036,49 @@ footer {
     order: 2 !important;
   }
 }
+.service-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.journey-steps {
+  padding-left: 22px;
+  line-height: 1.7;
+}
+.journey-steps li {
+  padding: 8px;
+}
+.assistance-note {
+  margin-bottom: 24px;
+  border-color: #e5b967;
+}
+.documents-panel {
+  margin-top: 20px;
+  padding: 18px;
+  background: #f7f9fc;
+  border: 1px solid #e0e6ef;
+  border-radius: 12px;
+}
+.document-row {
+  padding: 16px 0;
+  border-bottom: 1px solid #dfe5ee;
+  overflow-wrap: anywhere;
+}
+.document-row > .badge {
+  margin-left: 8px;
+}
+.documents-panel input[type="file"] {
+  width: 100%;
+  font-size: 12px;
+  padding: 8px;
+}
+.document-preview {
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.request-row > p {
+  overflow-wrap: anywhere;
+}
