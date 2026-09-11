@@ -87,54 +87,79 @@ export function CustomerHome() {
                 ))}
               </select>
             )}
-            <div className="vehicle-image">
-              <img src="/vehicle-civic.png" alt="Illustrative silver sedan" />
-              <span>MY GARAGE / {v?.year || "AUTOCARE"}</span>
-            </div>
+            <Card className="health-card">
+              <SectionTitle
+                title="Vehicle health overview"
+                action="View report"
+                onClick={() => navigate("health")}
+              />
+              <div className="row">
+                <p className="muted small">
+                  {inspection
+                    ? "Latest dealer inspection · Checklist v" +
+                      inspection.version
+                    : "An inspection report will appear after your visit."}
+                </p>
+                <Badge tone="green">
+                  {inspection?.score || v?.health || "—"}/100
+                </Badge>
+              </div>
+              <div className="health-grid">
+                {[
+                  [Droplets, "Engine oil", inspection?.oil],
+                  [Battery, "Battery", inspection?.battery],
+                  [Disc3, "Tyres", inspection?.tyres],
+                  [Disc3, "Brakes", inspection?.brakes],
+                ].map(([Icon, n, value]) => {
+                  const I = Icon as typeof Battery;
+                  return (
+                    <div
+                      className={value === "Check" ? "needs-attention" : ""}
+                      key={String(n)}
+                    >
+                      <I size={17} />
+                      <span>{String(n)}</span>
+                      <strong>{value ? String(value) : "—"}</strong>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
           </Card>
-          <Card className="priority-card">
-            <Badge tone="red">
-              <TriangleAlert size={13} />
-              ACTION RECOMMENDED
-            </Badge>
-            <h2>
-              {v?.verified
-                ? v.next_service > 0
-                  ? `Next service due: ${v.next_service.toLocaleString()} km`
-                  : "Plan your next service"
-                : "Verify your vehicle ownership"}
-            </h2>
-            <p>
-              {v?.verified
-                ? `Approximately ${Math.max(0, v.next_service - v.mileage).toLocaleString()} km to your next recommended visit.`
-                : "Your dealer will verify the vehicle before bookings are enabled."}
+          <section className="promotion">
+            <div className="promotion-visual">
+              <img
+                src="https://lh3.googleusercontent.com/aida/AEtjO1UEnLZz_YmzOTfTQI9Nk7j0m26CCaFRP2AFcCPMBU1pjVdbAhWaqYnlVODetFXIyXvvRNEbwajJjMDZWIabHhnlpivZJUESwLIa5a-d1ix315iav69mXjeMV0qqvRgvHaY0z8AX6RsPZvkZJMo7wJvQKbTDwYFlq2uaXBUfgxs0Bgv_EwulnZ0hS-ZQ72NGAVKarKQkgSWvsX15rOO994sbYh21_G5ij_z3tV2R7PmJGc1K3SmcpmzEjKY"
+                alt="Automotive workshop service team"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <Badge tone="red">DEALERSHIP OFFERS</Badge>
+            <h2>Special promotions</h2>
+            <p>Your next chapter deserves the same expert care.</p>
+            <p className="small">
+              Discover eligible offers from your dealership.
             </p>
-            <div className="battery-note">
-              <Battery size={18} />
-              <span>Battery health</span>
-              <strong>{inspection?.battery || "No report yet"}</strong>
-              <span className="muted">
-                {inspection?.battery === "Check" ? "Check advised" : ""}
-              </span>
-            </div>
-            <Button
-              className="button primary full"
-              onClick={() => navigate(v?.verified ? "booking" : "vehicles")}
-            >
-              <CalendarDays size={18} />
-              {v?.verified ? "Book service" : "My vehicles"}
+            <Button onClick={() => navigate("offers")}>
+              Explore offers
+              <ArrowRight size={16} />
             </Button>
-          </Card>
+          </section>
+          <h2>Service pillars</h2>
           <div className="quick-actions">
             {[
-              [CarFront, "Service", "booking"],
+              [CarFront, "Maintenance", "maintenance"],
+              [ShieldCheck, "Repairs", "repairs"],
+              [Tag, "Parts", "parts"],
+              [ShieldCheck, "Insurance", "insurance"],
+              [CarFront, "Towing", "towing"],
               [CalendarDays, "Appointments", "appointments"],
               [MessageSquareText, "Feedback", "feedback"],
             ].map(([Icon, label, path]) => {
               const I = Icon as typeof CarFront;
               return (
                 <button
-                  key={String(path)}
+                  key={String(label)}
                   onClick={() => navigate(String(path))}
                 >
                   <span>
@@ -146,44 +171,6 @@ export function CustomerHome() {
               );
             })}
           </div>
-          <Card className="health-card">
-            <SectionTitle
-              title="Vehicle health overview"
-              action="View report"
-              onClick={() => navigate("health")}
-            />
-            <div className="row">
-              <p className="muted small">
-                {inspection
-                  ? "Latest dealer inspection · Checklist v" +
-                    inspection.version
-                  : "An inspection report will appear after your visit."}
-              </p>
-              <Badge tone="green">
-                {inspection?.score || v?.health || "—"}/100
-              </Badge>
-            </div>
-            <div className="health-grid">
-              {[
-                [Droplets, "Engine oil", inspection?.oil],
-                [Battery, "Battery", inspection?.battery],
-                [Disc3, "Tyres", inspection?.tyres],
-                [Disc3, "Brakes", inspection?.brakes],
-              ].map(([Icon, n, value]) => {
-                const I = Icon as typeof Battery;
-                return (
-                  <div
-                    className={value === "Check" ? "needs-attention" : ""}
-                    key={String(n)}
-                  >
-                    <I size={17} />
-                    <span>{String(n)}</span>
-                    <strong>{value ? String(value) : "—"}</strong>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
         </div>
         <div className="customer-secondary">
           <Card className="loyalty-card">
@@ -221,19 +208,7 @@ export function CustomerHome() {
               View rewards <ArrowRight size={15} />
             </button>
           </Card>
-          <section className="promotion">
-            <Badge tone="red">SPECIAL PROMOTION</Badge>
-            <h2>After-Warranty Care</h2>
-            <p>Your next chapter deserves the same expert care.</p>
-            <p className="small">
-              Discover eligible offers from your dealership.
-            </p>
-            <Button onClick={() => navigate("offers")}>
-              Explore offers
-              <ArrowRight size={16} />
-            </Button>
-            <Tag className="promo-decoration" size={120} />
-          </section>
+
           <Card>
             <SectionTitle title="Your next appointment" />
             {ap ? (
@@ -281,6 +256,39 @@ export function CustomerHome() {
                 description="Book when you’re ready. We’ll be here."
               />
             )}
+          </Card>
+          <Card className="priority-card">
+            <Badge tone="red">
+              <TriangleAlert size={13} />
+              ACTION RECOMMENDED
+            </Badge>
+            <h2>
+              {v?.verified
+                ? v.next_service > 0
+                  ? `Next service due: ${v.next_service.toLocaleString()} km`
+                  : "Plan your next service"
+                : "Verify your vehicle ownership"}
+            </h2>
+            <p>
+              {v?.verified
+                ? `Approximately ${Math.max(0, v.next_service - v.mileage).toLocaleString()} km to your next recommended visit.`
+                : "Your dealer will verify the vehicle before bookings are enabled."}
+            </p>
+            <div className="battery-note">
+              <Battery size={18} />
+              <span>Battery health</span>
+              <strong>{inspection?.battery || "No report yet"}</strong>
+              <span className="muted">
+                {inspection?.battery === "Check" ? "Check advised" : ""}
+              </span>
+            </div>
+            <Button
+              className="button primary full"
+              onClick={() => navigate(v?.verified ? "booking" : "vehicles")}
+            >
+              <CalendarDays size={18} />
+              {v?.verified ? "Book service" : "My vehicles"}
+            </Button>
           </Card>
           <div className="care-note">
             <ShieldCheck size={27} />

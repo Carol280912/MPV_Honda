@@ -47,6 +47,11 @@ export function scopeData(d: Data, a: Actor): Data {
         );
       if (key === "recovery_cases" || key === "adjustments")
         return a.role === "administrator" || a.role === "manager";
+      if (key === "service_catalogue")
+        return (
+          a.role !== "advisor" &&
+          (a.role !== "customer" || ("active" in r && r.active))
+        );
       if (key === "settings") return true;
       if (key === "campaigns")
         return (
@@ -112,6 +117,104 @@ export function applyCommand(input: Data, a: Actor, c: Command): Data {
       created_at: now,
     });
   switch (c.type) {
+    case "phase2.catalogue.create": {
+      requireRole(a, ["administrator"]);
+      const effective = required(p.effective_on);
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(effective) ||
+        !Number.isFinite(Date.parse(effective))
+      )
+        throw Error("Valid effective date required.");
+      d.service_catalogue.push({
+        ...base,
+        id,
+        title: required(p.title),
+        category: required(p.category),
+        description: required(p.description),
+        price_sen: number(p.price_sen, 0, 10000000),
+        effective_on: effective,
+        active: true,
+      });
+      audit("Catalogue version created");
+      break;
+    }
+    case "phase2.catalogue.archive": {
+      requireRole(a, ["administrator"]);
+      const item = d.service_catalogue.find(
+        (x) => x.id === c.id && inScope(a, x),
+      );
+      if (!item) throw Error("Catalogue item unavailable.");
+      item.active = false;
+      audit("Catalogue item archived");
+      break;
+    }
+    case "phase2.request.create": {
+      requireRole(a, ["customer"]);
+      const cid = required(p.customer_id);
+      customer(cid);
+      const vehicle = d.vehicles.find(
+        (x) =>
+          x.id === p.vehicle_id &&
+          x.customer_id === cid &&
+          inScope(a, x) &&
+          x.verified,
+      );
+      if (!vehicle) throw Error("Choose your verified vehicle.");
+      const category = required(p.category);
+      if (
+        ![
+          "Maintenance",
+          "Repairs",
+          "Parts",
+          "Insurance",
+          "Towing",
+          "Referral",
+          "Trade-in",
+        ].includes(category)
+      )
+        throw Error("Unknown service category.");
+      d.service_requests.unshift({
+        ...base,
+        id,
+        customer_id: cid,
+        vehicle_id: vehicle.id,
+        category,
+        details: required(p.details),
+        status: "Requested",
+        outcome: "",
+        created_at: now,
+      });
+      audit("Customer service request received");
+      break;
+    }
+    case "phase2.request.update": {
+      requireRole(a, ["manager"]);
+      const item = d.service_requests.find(
+        (x) => x.id === c.id && inScope(a, x),
+      );
+      if (!item) throw Error("Request unavailable.");
+      const next = required(p.status);
+      const transitions: Record<string, string[]> = {
+        Requested: ["In progress", "Closed"],
+        "In progress": ["Waiting for customer", "Closed"],
+        "Waiting for customer": ["In progress", "Closed"],
+      };
+      if (!transitions[item.status]?.includes(next))
+        throw Error("Invalid request transition.");
+      item.outcome = required(p.outcome);
+      item.status = next;
+      d.notifications.unshift({
+        ...base,
+        id: crypto.randomUUID(),
+        customer_id: item.customer_id,
+        category: "Transactional",
+        title: item.category + " request updated",
+        body: item.outcome,
+        created_at: now,
+      });
+      audit(item.outcome);
+      break;
+    }
     case "appointment.create":
     case "appointment.reschedule": {
       requireRole(a, ["customer", "advisor", "manager"]);
@@ -499,7 +602,13 @@ export function createDemoRepository(): Repository {
   const read = () => {
     try {
       const s = localStorage.getItem(KEY);
-      return s ? (JSON.parse(s) as Data) : makeSeed();
+      const saved = s ? (JSON.parse(s) as Data) : makeSeed();
+      return {
+        ...saved,
+        service_catalogue:
+          saved.service_catalogue ?? makeSeed().service_catalogue,
+        service_requests: saved.service_requests ?? [],
+      };
     } catch {
       return makeSeed();
     }

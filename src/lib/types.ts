@@ -148,7 +148,26 @@ export interface Inspection extends Base {
   version: number;
   created_at: string;
 }
+export interface CatalogueItem extends Base {
+  title: string;
+  category: string;
+  description: string;
+  price_sen: number;
+  effective_on: string;
+  active: boolean;
+}
+export interface ServiceRequest extends Base {
+  customer_id: string;
+  vehicle_id: string;
+  category: string;
+  details: string;
+  status: string;
+  outcome: string;
+  created_at: string;
+}
 export interface Data {
+  service_catalogue: CatalogueItem[];
+  service_requests: ServiceRequest[];
   customers: Customer[];
   vehicles: Vehicle[];
   appointments: Appointment[];

@@ -58,7 +58,7 @@ export function OperationsHome() {
             ? "Your assigned customers, appointments and follow-ups."
             : "A clear view of your team, your customers and what needs attention."
         }
-        action={<Badge tone="green">● Phase 1 workspace</Badge>}
+        action={<Badge tone="green">● Branch workspace</Badge>}
       />
       <div className="metrics">
         <Metric

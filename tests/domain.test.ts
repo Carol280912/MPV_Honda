@@ -242,3 +242,90 @@ describe("Loyalty and consent controls", () => {
   it("escapes spreadsheet formula injection in CSV", () =>
     expect(csvCell('=HYPERLINK("x")')).toBe('"\'=HYPERLINK(""x"")"'));
 });
+
+describe("Phase 2 service requests", () => {
+  it("scopes requests to their owner and allows manager handling only", () => {
+    const d = applyCommand(makeSeed(), customer, {
+      type: "phase2.request.create",
+      payload: {
+        customer_id: "c1",
+        vehicle_id: "v1",
+        category: "Parts",
+        details: "Please check compatible battery options",
+      },
+    });
+    const id = d.service_requests[0].id;
+    expect(() =>
+      applyCommand(d, customer, {
+        type: "phase2.request.update",
+        id,
+        payload: { status: "Closed", outcome: "Done" },
+      }),
+    ).toThrow(/permission/);
+    const updated = applyCommand(d, manager, {
+      type: "phase2.request.update",
+      id,
+      payload: { status: "In progress", outcome: "Checking fitment" },
+    });
+    expect(updated.service_requests[0].status).toBe("In progress");
+    expect(updated.notifications[0].body).toBe("Checking fitment");
+    expect(
+      scopeData(updated, { ...customer, user_id: "daniel", customer_id: "c2" })
+        .service_requests,
+    ).toHaveLength(0);
+  });
+  it("rejects foreign vehicles, empty outcomes and reopening closed requests", () => {
+    expect(() =>
+      applyCommand(makeSeed(), customer, {
+        type: "phase2.request.create",
+        payload: {
+          customer_id: "c1",
+          vehicle_id: "v3",
+          category: "Repairs",
+          details: "Check",
+        },
+      }),
+    ).toThrow(/verified vehicle/);
+    const d = applyCommand(makeSeed(), customer, {
+      type: "phase2.request.create",
+      payload: {
+        customer_id: "c1",
+        vehicle_id: "v1",
+        category: "Repairs",
+        details: "Check",
+      },
+    });
+    const id = d.service_requests[0].id;
+    expect(() =>
+      applyCommand(d, manager, {
+        type: "phase2.request.update",
+        id,
+        payload: { status: "Closed", outcome: "" },
+      }),
+    ).toThrow(/required/);
+    const closed = applyCommand(d, manager, {
+      type: "phase2.request.update",
+      id,
+      payload: { status: "Closed", outcome: "Customer cancelled" },
+    });
+    expect(() =>
+      applyCommand(closed, manager, {
+        type: "phase2.request.update",
+        id,
+        payload: { status: "In progress", outcome: "Reopen" },
+      }),
+    ).toThrow(/transition/);
+  });
+  it("reserves catalogue changes for administrators and preserves archived versions", () => {
+    const cmd = {
+      type: "phase2.catalogue.archive",
+      id: "package-1",
+      payload: {},
+    };
+    expect(() => applyCommand(makeSeed(), manager, cmd)).toThrow(/permission/);
+    const d = applyCommand(makeSeed(), admin, cmd);
+    expect(d.service_catalogue).toHaveLength(2);
+    expect(scopeData(d, customer).service_catalogue).toHaveLength(1);
+    expect(() => applyCommand(d, demoActors.advisor, cmd)).toThrow(/on hold/);
+  });
+});

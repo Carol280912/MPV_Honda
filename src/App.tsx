@@ -1,3 +1,4 @@
+import { PhaseTwo } from "./features/PhaseTwo";
 import { useEffect, useMemo, useState } from "react";
 import {
   Home,
@@ -53,14 +54,17 @@ import { Button, Card, Empty } from "./components/ui";
 const navs = {
   customer: [
     ["home", "Home", Home],
-    ["booking", "Service", CarFront],
+    ["vehicles", "Vehicles", CarFront],
+    ["services", "Service & repairs", CarFront],
     ["appointments", "Bookings", CalendarDays],
-    ["wallet", "Wallet", Gift],
-    ["more", "More", Menu],
+    ["wallet", "Loyalty rewards", Gift],
+    ["history", "Documents & history", ClipboardCheck],
+    ["more", "Settings", Menu],
   ],
   manager: [
     ["home", "Overview", Home],
     ["appointments", "Appointments", CalendarDays],
+    ["services", "Service requests", CarFront],
     ["customers", "Customers & retention", Users],
     ["recovery", "Service recovery", HeartHandshake],
     ["campaigns", "Campaigns", Megaphone],
@@ -73,12 +77,19 @@ const navs = {
     ["access", "People & access", Users],
     ["settings", "Rules & configuration", Settings2],
     ["loyalty", "Loyalty governance", Gift],
+    ["services", "Service catalogue", CarFront],
     ["quality", "Data quality", ShieldCheck],
     ["audit", "Audit trail", Activity],
   ],
 } as const;
 const allowed: Record<Role, string[]> = {
   customer: [
+    "maintenance",
+    "repairs",
+    "parts",
+    "insurance",
+    "towing",
+    "services",
     "home",
     "booking",
     "appointments",
@@ -92,6 +103,7 @@ const allowed: Record<Role, string[]> = {
     "offers",
   ],
   manager: [
+    "services",
     "home",
     "appointments",
     "booking",
@@ -102,7 +114,15 @@ const allowed: Record<Role, string[]> = {
     "audit",
   ],
   advisor: [],
-  administrator: ["home", "access", "settings", "loyalty", "quality", "audit"],
+  administrator: [
+    "services",
+    "home",
+    "access",
+    "settings",
+    "loyalty",
+    "quality",
+    "audit",
+  ],
 };
 function initialActor(): Actor | null {
   if (mode !== "demo") return null;
@@ -319,6 +339,23 @@ export default function App() {
       case "appointments":
         content = <Appointments key={route} book={route === "booking"} />;
         break;
+      case "maintenance":
+      case "repairs":
+      case "parts":
+      case "insurance":
+      case "towing":
+      case "services":
+        content = (
+          <PhaseTwo
+            key={route}
+            initialCategory={
+              route === "services"
+                ? "Maintenance"
+                : route[0].toUpperCase() + route.slice(1)
+            }
+          />
+        );
+        break;
       case "vehicles":
         content = <CustomerVehicles />;
         break;
@@ -381,7 +418,7 @@ export default function App() {
             <ShieldCheck size={20} />
             <span>
               <strong>{data.settings[0].dealer_name}</strong>
-              <small>Glenmarie · Phase 1</small>
+              <small>Glenmarie · Phase 2</small>
             </span>
             <ChevronDown size={14} />
           </div>
@@ -514,21 +551,31 @@ export default function App() {
             <footer>
               © {new Date().getFullYear()} AutoCare ·{" "}
               {data.settings[0].dealer_name}
-              <span>Phase 1 · Ownership & retention</span>
+              <span>Phase 2 · Ownership & care</span>
             </footer>
           </main>
           {actor.role === "customer" && (
             <nav className="bottom-nav" aria-label="Customer navigation">
-              {navs.customer.map(([path, label, Icon]) => (
-                <button
-                  key={path}
-                  className={route === path ? "active" : ""}
-                  onClick={() => navigate(path)}
-                >
-                  <Icon size={21} />
-                  {label}
-                </button>
-              ))}
+              {navs.customer
+                .filter((n) =>
+                  [
+                    "home",
+                    "services",
+                    "appointments",
+                    "wallet",
+                    "more",
+                  ].includes(n[0]),
+                )
+                .map(([path, label, Icon]) => (
+                  <button
+                    key={path}
+                    className={route === path ? "active" : ""}
+                    onClick={() => navigate(path)}
+                  >
+                    <Icon size={21} />
+                    {label}
+                  </button>
+                ))}
             </nav>
           )}
         </div>

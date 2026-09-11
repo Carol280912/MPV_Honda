@@ -33,6 +33,30 @@ export const demoActors: Record<Role, Actor> = {
 export function makeSeed(): Data {
   const now = new Date().toISOString();
   return {
+    service_catalogue: [
+      {
+        ...base,
+        id: "package-1",
+        title: "Essential maintenance",
+        category: "Maintenance",
+        description:
+          "Oil service and multipoint inspection. Final scope confirmed after vehicle assessment.",
+        price_sen: 28800,
+        effective_on: "2026-01-01",
+        active: true,
+      },
+      {
+        ...base,
+        id: "package-2",
+        title: "Battery assessment",
+        category: "Repairs",
+        description: "Diagnostic check before any replacement recommendation.",
+        price_sen: 5000,
+        effective_on: "2026-01-01",
+        active: true,
+      },
+    ],
+    service_requests: [],
     customers: [
       [
         "c1",
