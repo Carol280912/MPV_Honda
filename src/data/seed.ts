@@ -33,6 +33,7 @@ export const demoActors: Record<Role, Actor> = {
 export function makeSeed(): Data {
   const now = new Date().toISOString();
   return {
+    loyalty_claims: [],
     service_documents: [],
     service_catalogue: [
       {

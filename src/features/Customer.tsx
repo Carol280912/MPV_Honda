@@ -387,6 +387,11 @@ export function CustomerWallet() {
   return (
     <>
       <Heading
+        action={
+          <Button onClick={() => (window.location.hash = "claims")}>
+            Submit receipt / points claims
+          </Button>
+        }
         title="My rewards"
         description="Your loyalty, recognised. Every entry has a story."
       />

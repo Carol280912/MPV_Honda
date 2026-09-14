@@ -117,6 +117,134 @@ export function applyCommand(input: Data, a: Actor, c: Command): Data {
       created_at: now,
     });
   switch (c.type) {
+    case "loyalty.extract": {
+      requireRole(a, ["customer"]);
+      const doc = d.service_documents.find(
+        (x) =>
+          (x.id === c.id ||
+            (p.storage_path && x.storage_path === p.storage_path)) &&
+          inScope(a, x),
+      );
+      if (!doc) throw Error("Document unavailable.");
+      customer(doc.customer_id);
+      if (doc.kind === "Supporting document")
+        throw Error("Choose a receipt or invoice for a points claim.");
+      if (d.loyalty_claims.some((x) => x.document_id === doc.id)) break;
+      d.loyalty_claims.push({
+        ...base,
+        id,
+        document_id: doc.id,
+        customer_id: doc.customer_id,
+        status: "Review details",
+        merchant: "",
+        invoice_number: "",
+        invoice_date: "",
+        total_sen: doc.amount_sen,
+        eligible_sen: 0,
+        points: 0,
+        rate: 0,
+        paid_reference: "",
+        review_note: "",
+        extracted: {
+          source:
+            "Demo — no OCR. Enter sample invoice details; declared amount copied from upload.",
+        },
+        created_at: now,
+      });
+      audit("Demo claim prepared; no OCR performed");
+      break;
+    }
+    case "loyalty.confirm": {
+      requireRole(a, ["customer"]);
+      const claim = d.loyalty_claims.find(
+        (x) => x.id === c.id && inScope(a, x),
+      );
+      if (!claim) throw Error("Claim unavailable.");
+      customer(claim.customer_id);
+      if (!["Review details", "Extraction failed"].includes(claim.status))
+        throw Error("Claim already submitted.");
+      claim.merchant = required(p.merchant);
+      claim.invoice_number = required(p.invoice_number)
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
+      if (!claim.invoice_number) throw Error("Invoice number required.");
+      claim.invoice_date = required(p.invoice_date);
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(claim.invoice_date) ||
+        !Number.isFinite(Date.parse(claim.invoice_date)) ||
+        claim.invoice_date > new Date().toISOString().slice(0, 10)
+      )
+        throw Error("Valid invoice date required.");
+      if (p.currency_confirmed !== true)
+        throw Error("Confirm that the amount is in MYR.");
+      claim.total_sen = number(p.total_sen, 1, 100000000);
+      claim.status = "Pending verification";
+      audit("Customer checked invoice details and MYR amount");
+      break;
+    }
+    case "loyalty.approve":
+    case "loyalty.reject": {
+      requireRole(a, ["manager"]);
+      const claim = d.loyalty_claims.find(
+        (x) => x.id === c.id && inScope(a, x),
+      );
+      if (!claim) throw Error("Claim unavailable.");
+      if (d.customers.some(x=>x.id===claim.customer_id&&x.user_id===a.user_id)) throw Error("A different manager must verify this claim.");
+      if (claim.status === "Credited" && c.type === "loyalty.approve") break;
+      if (claim.status !== "Pending verification")
+        throw Error("Claim is not awaiting verification.");
+      claim.review_note = required(p.review_note);
+      if (c.type === "loyalty.reject") {
+        claim.status = "Rejected";
+        audit(claim.review_note);
+        break;
+      }
+      if (p.paid_confirmed !== true)
+        throw Error("Confirm payment against dealer records.");
+      claim.eligible_sen = number(p.eligible_sen, 1, claim.total_sen);
+      claim.paid_reference = required(p.paid_reference)
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
+      if (!claim.paid_reference)
+        throw Error("Dealer payment reference required.");
+      if (
+        d.loyalty_claims.some(
+          (x) =>
+            x.id !== claim.id &&
+            inScope(a, x) &&
+            x.status === "Credited" &&
+            (x.invoice_number === claim.invoice_number ||
+              x.paid_reference === claim.paid_reference),
+        )
+      )
+        throw Error("Duplicate invoice or paid transaction already credited.");
+      claim.rate = s.points_per_rm;
+      claim.points = Math.floor((claim.eligible_sen * claim.rate) / 100);
+      if (claim.points < 1 || claim.points > 2147483647)
+        throw Error("Points amount is outside the supported range.");
+      d.loyalty_entries.push({
+        ...base,
+        id: crypto.randomUUID(),
+        customer_id: claim.customer_id,
+        points: claim.points,
+        reason: "Verified spending · " + claim.invoice_number,
+        reference: "claim:" + claim.id,
+        created_at: now,
+      });
+      claim.status = "Credited";
+      d.notifications.unshift({
+        ...base,
+        id: crypto.randomUUID(),
+        customer_id: claim.customer_id,
+        category: "Transactional",
+        title: "Loyalty points credited",
+        body:
+          claim.points + " points credited for invoice " + claim.invoice_number,
+        created_at: now,
+      });
+      audit(claim.review_note);
+      break;
+    }
     case "document.register": {
       requireRole(a, ["customer"]);
       const r = d.service_requests.find(
@@ -143,7 +271,7 @@ export function applyCommand(input: Data, a: Actor, c: Command): Data {
         customer_id: r.customer_id,
         filename: required(p.filename),
         mime_type: mime,
-        storage_path: "",
+        storage_path: String(p.storage_path || ""),
         demo_url: url,
         kind: String(p.kind),
         amount_sen: number(p.amount_sen, 0, 100000000),
@@ -663,6 +791,7 @@ export function createDemoRepository(): Repository {
           saved.service_catalogue ?? makeSeed().service_catalogue,
         service_requests: saved.service_requests ?? [],
         service_documents: saved.service_documents ?? [],
+        loyalty_claims: saved.loyalty_claims ?? [],
       };
     } catch {
       return makeSeed();

@@ -1,0 +1,3 @@
+# The function validates the JWT with auth.getUser() and checks document ownership.
+[functions.extract-receipt]
+verify_jwt = false

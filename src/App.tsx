@@ -1,3 +1,4 @@
+import { LoyaltyClaims } from "./features/LoyaltyClaims";
 import { PhaseTwo } from "./features/PhaseTwo";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -54,6 +55,7 @@ import { Button, Card, Empty } from "./components/ui";
 const navs = {
   customer: [
     ["home", "Home", Home],
+    ["claims", "Points claims", Gift],
     ["vehicles", "Vehicles", CarFront],
     ["services", "Service & repairs", CarFront],
     ["appointments", "Bookings", CalendarDays],
@@ -63,6 +65,7 @@ const navs = {
   ],
   manager: [
     ["home", "Overview", Home],
+    ["claims", "Points claims", Gift],
     ["appointments", "Appointments", CalendarDays],
     ["services", "Service requests", CarFront],
     ["customers", "Customers & retention", Users],
@@ -74,6 +77,7 @@ const navs = {
   advisor: [],
   administrator: [
     ["home", "Overview", Home],
+    ["claims", "Points claims", Gift],
     ["access", "People & access", Users],
     ["settings", "Rules & configuration", Settings2],
     ["loyalty", "Loyalty governance", Gift],
@@ -90,6 +94,7 @@ const allowed: Record<Role, string[]> = {
     "insurance",
     "towing",
     "services",
+    "claims",
     "home",
     "booking",
     "appointments",
@@ -104,6 +109,7 @@ const allowed: Record<Role, string[]> = {
   ],
   manager: [
     "services",
+    "claims",
     "home",
     "appointments",
     "booking",
@@ -116,6 +122,7 @@ const allowed: Record<Role, string[]> = {
   advisor: [],
   administrator: [
     "services",
+    "claims",
     "home",
     "access",
     "settings",
@@ -325,6 +332,9 @@ export default function App() {
     );
   else
     switch (route) {
+      case "claims":
+        content = <LoyaltyClaims />;
+        break;
       case "home":
         content =
           actor.role === "customer" ? (

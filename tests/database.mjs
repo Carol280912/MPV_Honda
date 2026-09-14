@@ -5,12 +5,13 @@ import assert from 'node:assert/strict';
 const db=new PGlite();let checks=0;
 const u=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const t=u(1),b=u(2),t2=u(3),b2=u(4),admin=u(10),manager=u(11),customer=u(12),other=u(13),advisor=u(14),newUser=u(15),c=u(20),c2=u(21),v=u(30),v2=u(31),ap=u(40),adj=u(50);
-await db.exec(`create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz,raw_user_meta_data jsonb);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth to authenticated;grant execute on function auth.uid() to authenticated;`);
+await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz,raw_user_meta_data jsonb);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth to authenticated;grant execute on function auth.uid() to authenticated;`);
 await db.exec(fs.readFileSync(new URL('../supabase/migrations/202609090001_phase1.sql',import.meta.url),'utf8'));checks++;
 await db.exec(fs.readFileSync(new URL('../supabase/migrations/202609100001_phase2.sql',import.meta.url),'utf8'));checks++;
 // Storage API metadata is stubbed; policies execute in real PostgreSQL.
 await db.exec(`create schema storage; create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]); create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text,metadata jsonb); alter table storage.objects enable row level security;grant usage on schema storage to authenticated;grant select,insert,delete on storage.objects to authenticated;`);
 await db.exec(fs.readFileSync(new URL('../supabase/migrations/202609110001_service_documents.sql',import.meta.url),'utf8'));checks++;
+await db.exec(fs.readFileSync(new URL('../supabase/migrations/202609110002_loyalty_claims.sql',import.meta.url),'utf8'));checks++;
 for(const [id,name] of [[admin,'Admin'],[manager,'Manager'],[customer,'Customer'],[other,'Other'],[advisor,'Advisor'],[newUser,'New customer']])await db.query('insert into auth.users values($1,$2,now(),$3)',[id,name.toLowerCase()+'@example.test',JSON.stringify({full_name:name,role:'administrator'})]);
 await db.exec(`insert into public.tenants values('${t}','Dealer one',true),('${t2}','Dealer two',true);insert into public.branches values('${b}','${t}','Branch one'),('${b2}','${t2}','Branch two');insert into public.settings(tenant_id,branch_id,dealer_name) values('${t}','${b}','Dealer one'),('${t2}','${b2}','Dealer two');`);
 for(const [uid,role] of [[admin,'administrator'],[manager,'manager'],[customer,'customer'],[advisor,'advisor']])await db.query('insert into public.memberships(tenant_id,branch_id,user_id,name,role) values($1,$2,$3,$4,$5)',[t,b,uid,role,role]);
@@ -77,6 +78,27 @@ await docAction('document.review',evidence,{status:'Verified',review_note:'Match
 await rejects(()=>docAction('document.review',evidence,{status:'Rejected',review_note:'Overwrite'}),/no longer/);
 assert.equal((await db.query(`select sum(points)::integer n from public.loyalty_entries where customer_id='${c}'`)).rows[0].n,1600);checks++;
 await asUser(customer);await db.query('delete from storage.objects where name=$1',[evidencePath]);assert.equal((await db.query('select * from storage.objects where name=$1',[evidencePath])).rows.length,1);checks++;
+// Trusted OCR insert; clients must not be able to insert or overwrite suggestions.
+await db.exec('reset role');
+const claim=u(110),duplicate=u(111),doc2=u(112);
+await db.query("insert into public.loyalty_claims(id,tenant_id,branch_id,customer_id,document_id,status,extracted) values($1,$2,$3,$4,$5,'Review details','{}')",[claim,t,b,c,evidence]);
+async function loyalty(type,id,payload){return db.query('select public.loyalty_action($1,$2,$3,$4,$5)',[t,b,type,id,JSON.stringify(payload)])}
+await asUser(customer);await rejects(()=>db.exec("update public.loyalty_claims set status='Credited'"),/permission denied/);
+await rejects(()=>loyalty('loyalty.approve',claim,{}),/Manager/);
+await loyalty('loyalty.confirm',claim,{merchant:'Dealer one',invoice_number:'INV-123',invoice_date:'2026-01-01',total_sen:12550,currency_confirmed:true});checks++;
+await asUser(manager);await rejects(()=>loyalty('loyalty.approve',claim,{eligible_sen:10050,paid_reference:'PAY-123',review_note:'Checked',paid_confirmed:false}),/Confirm paid/);
+await rejects(()=>loyalty('loyalty.approve',claim,{eligible_sen:13000,paid_reference:'PAY-123',review_note:'Checked',paid_confirmed:true}),/eligible spending/);
+await loyalty('loyalty.approve',claim,{eligible_sen:10050,paid_reference:'PAY-123',review_note:'Matched bank and invoice',paid_confirmed:true});checks++;
+await loyalty('loyalty.approve',claim,{eligible_sen:10050,paid_reference:'PAY-123',review_note:'Retry',paid_confirmed:true});checks++;
+assert.equal((await db.query(`select sum(points)::integer n from public.loyalty_entries where customer_id='${c}'`)).rows[0].n,1700);checks++;
+await asUser(other);await count('loyalty_claims',0);
+await asUser(advisor);await rejects(()=>loyalty('loyalty.approve',claim,{}),/on hold/);
+await db.exec('reset role');
+await db.query("insert into public.service_documents(id,tenant_id,branch_id,customer_id,request_id,filename,mime_type,storage_path,kind) values($1,$2,$3,$4,$5,'duplicate.pdf','application/pdf','duplicate-path','Receipt')",[doc2,t,b,c,request]);
+await db.query("insert into public.loyalty_claims(id,tenant_id,branch_id,customer_id,document_id,status,invoice_number,invoice_date,total_sen) values($1,$2,$3,$4,$5,'Pending verification','INV123','2026-01-01',12550)",[duplicate,t,b,c,doc2]);
+await asUser(manager);await rejects(()=>loyalty('loyalty.approve',duplicate,{eligible_sen:10050,paid_reference:'OTHER-PAY',review_note:'Duplicate',paid_confirmed:true}),/Duplicate/);
+await loyalty('loyalty.reject',duplicate,{review_note:'Duplicate invoice'});checks++;
+assert.equal((await db.query(`select sum(points)::integer n from public.loyalty_entries where customer_id='${c}'`)).rows[0].n,1700);checks++;
 await asUser(newUser);await db.query('select public.enrol_customer($1,$2)',[t,b]);assert.equal((await db.query('select role from public.memberships where user_id=$1',[newUser])).rows[0].role,'customer');checks++;
 await rejects(()=>db.query('select public.enrol_customer($1,$2)',[t,b]),/already exists/);
 await asUser(admin);const mid=(await db.query('select id from public.memberships where user_id=$1',[manager])).rows[0].id;await action('member.update',mid,{role:'manager',active:false,reason:'Access suspension test'});

@@ -59,10 +59,25 @@ export function Documents({ request }: { request: ServiceRequest }) {
   return (
     <div className="documents-panel">
       <h3>Receipts & supporting documents</h3>
+      {mode !== "demo" && (
+        <p className="small muted">
+          Receipts and invoices are sent to the dealer’s configured OCR provider
+          to suggest loyalty claim details. Check extracted values before
+          submitting.
+        </p>
+      )}
       <p className="small muted">
         Verification records a manual review of evidence. It does not create a
-        payment, refund or loyalty credit.
+        payment or refund. Points claims require a separate customer check and
+        Manager payment approval.
       </p>
+      <Button
+        variant="secondary"
+        type="button"
+        onClick={() => (window.location.hash = "claims")}
+      >
+        Open points claims
+      </Button>
       {docs.map((d) => (
         <div className="document-row" key={d.id}>
           <strong>{d.filename}</strong>
@@ -127,7 +142,7 @@ export function Documents({ request }: { request: ServiceRequest }) {
             if (!file) return;
             const form = e.currentTarget;
             setUploading(true);
-            let path = "";
+            let path = `${actor.tenant_id}/${actor.branch_id}/${request.customer_id}/${request.id}/${crypto.randomUUID()}`;
             try {
               await validateDocument(file);
               const f = new FormData(form);
@@ -174,7 +189,12 @@ export function Documents({ request }: { request: ServiceRequest }) {
               if (success) {
                 setFile(null);
                 form.reset();
-              } else if (path) {
+                if (f.get("kind") !== "Supporting document")
+                  await run({
+                    type: "loyalty.extract",
+                    payload: { storage_path: path },
+                  });
+              } else if (path && mode !== "demo") {
                 await supabase!.storage.from("service-evidence").remove([path]);
               }
             } catch (e) {

@@ -180,7 +180,24 @@ export interface ServiceDocument extends Base {
   reviewed_by: string | null;
   created_at: string;
 }
+export interface LoyaltyClaim extends Base {
+  document_id: string;
+  customer_id: string;
+  status: string;
+  merchant: string;
+  invoice_number: string;
+  invoice_date: string;
+  total_sen: number;
+  eligible_sen: number;
+  points: number;
+  rate: number;
+  paid_reference: string;
+  review_note: string;
+  extracted: Record<string, unknown>;
+  created_at: string;
+}
 export interface Data {
+  loyalty_claims: LoyaltyClaim[];
   service_documents: ServiceDocument[];
   service_catalogue: CatalogueItem[];
   service_requests: ServiceRequest[];

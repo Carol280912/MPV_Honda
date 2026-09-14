@@ -387,3 +387,133 @@ describe("Service evidence authorization", () => {
     ).toHaveLength(0);
   });
 });
+
+describe("Receipt-to-points workflow", () => {
+  function prepared() {
+    let d = applyCommand(makeSeed(), customer, {
+      type: "phase2.request.create",
+      payload: {
+        customer_id: "c1",
+        vehicle_id: "v1",
+        category: "Maintenance",
+        details: "Loyalty test",
+      },
+    });
+    d = applyCommand(d, customer, {
+      type: "document.register",
+      payload: {
+        request_id: d.service_requests[0].id,
+        filename: "invoice.pdf",
+        mime_type: "application/pdf",
+        demo_url: "data:application/pdf;base64,JVBERi0x",
+        kind: "Receipt",
+        amount_sen: 12550,
+      },
+    });
+    d = applyCommand(d, customer, {
+      type: "loyalty.extract",
+      id: d.service_documents[0].id,
+      payload: {},
+    });
+    return d;
+  }
+  const confirm = {
+    merchant: "Premier",
+    invoice_number: "INV-001",
+    invoice_date: "2026-01-01",
+    total_sen: 12550,
+    currency_confirmed: true,
+  };
+  const approve = {
+    eligible_sen: 10050,
+    paid_reference: "PAY-001",
+    paid_confirmed: true,
+    review_note: "Matched original invoice and paid dealer record",
+  };
+  it("credits only after customer confirmation and manager payment verification, exactly once", () => {
+    let d = prepared();
+    const id = d.loyalty_claims[0].id;
+    expect(() =>
+      applyCommand(d, manager, {
+        type: "loyalty.approve",
+        id,
+        payload: approve,
+      }),
+    ).toThrow(/awaiting/);
+    d = applyCommand(d, customer, {
+      type: "loyalty.confirm",
+      id,
+      payload: confirm,
+    });
+    expect(() =>
+      applyCommand(d, customer, {
+        type: "loyalty.approve",
+        id,
+        payload: approve,
+      }),
+    ).toThrow(/permission/);
+    expect(() =>
+      applyCommand(d, manager, {
+        type: "loyalty.approve",
+        id,
+        payload: { ...approve, paid_confirmed: false },
+      }),
+    ).toThrow(/payment/);
+    expect(() =>
+      applyCommand(d, manager, {
+        type: "loyalty.approve",
+        id,
+        payload: { ...approve, eligible_sen: 12600 },
+      }),
+    ).toThrow();
+    const before = balance(d, "c1");
+    d = applyCommand(d, manager, {
+      type: "loyalty.approve",
+      id,
+      payload: approve,
+    });
+    expect(balance(d, "c1")).toBe(before + 100);
+    expect(d.loyalty_claims[0].rate).toBe(1);
+    d = applyCommand(d, manager, {
+      type: "loyalty.approve",
+      id,
+      payload: approve,
+    });
+    expect(balance(d, "c1")).toBe(before + 100);
+  });
+  it("rejects duplicate normalized invoices and keeps rejected claims out of the ledger", () => {
+    let d = prepared();
+    const id = d.loyalty_claims[0].id;
+    d = applyCommand(d, customer, {
+      type: "loyalty.confirm",
+      id,
+      payload: confirm,
+    });
+    d = applyCommand(d, manager, {
+      type: "loyalty.approve",
+      id,
+      payload: approve,
+    });
+    const duplicate = {
+      ...d.loyalty_claims[0],
+      id: "duplicate",
+      document_id: "another",
+      status: "Pending verification",
+    };
+    d.loyalty_claims.push(duplicate);
+    expect(() =>
+      applyCommand(d, manager, {
+        type: "loyalty.approve",
+        id: "duplicate",
+        payload: { ...approve, paid_reference: "OTHER" },
+      }),
+    ).toThrow(/Duplicate/);
+    const before = balance(d, "c1");
+    d = applyCommand(d, manager, {
+      type: "loyalty.reject",
+      id: "duplicate",
+      payload: { review_note: "Duplicate receipt" },
+    });
+    expect(balance(d, "c1")).toBe(before);
+  });
+});

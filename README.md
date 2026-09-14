@@ -77,3 +77,7 @@ Apply the new `supabase/migrations/202609100001_phase2.sql` migration after Phas
 ## September 11 — separate journeys and receipt uploads
 
 Maintenance, Repairs, Parts, Insurance and Towing now have distinct customer forms and next steps. Each request supports photos/PDFs and Manager evidence verification. See [setup, upload limits and GitHub instructions](docs/SERVICE-JOURNEYS.md). For live uploads, apply `202609110001_service_documents.sql` after the earlier migrations. Demo uploads remain in the local browser.
+
+## Loyalty receipt-to-points workflow
+
+The newest release adds automatic server-side OCR integration, customer detail confirmation, Manager paid-spending verification and atomic points crediting. See [LOYALTY-LAUNCH.md](docs/LOYALTY-LAUNCH.md) for setup, required credentials, safeguards and test coverage. Demo mode simulates the claim workflow and does not run OCR. Live use requires the new loyalty migration and `extract-receipt` Edge Function.
